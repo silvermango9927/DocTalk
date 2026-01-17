@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Google Docs Extractor",
+  "version": "1.0",
+  "description": "Extract content from Google Docs using OAuth",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "identity",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://docs.googleapis.com/*",
+    "https://accounts.google.com/*",
+    "http://localhost:3000/*"
+  ],
+  "oauth2": {
+    "client_id": "178118711253-e5vsvlgs629gdnrtvbu4eh2agc3lnnpq.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/documents.readonly"
+    ]
+  }
+}
