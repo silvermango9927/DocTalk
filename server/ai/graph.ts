@@ -1,10 +1,13 @@
 import { StateGraph, END } from "@langchain/langgraph";
 import { MemorySaver } from "@langchain/langgraph";
-import { AgentState, AudioOutput } from "./state";
-import { supervisor } from "./agents/supervisor";
-import { criticNode } from "./agents/analyst";
-import { creativeNode } from "./agents/stylist";
+import { AgentState, AudioOutput } from "./state.js";
+import { supervisor } from "./agents/supervisor.js";
+import { criticNode } from "./agents/analyst.js";
+import { creativeNode } from "./agents/stylist.js";
 import { HumanMessage } from "@langchain/core/messages";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 // Memory checkpointer for persistence
 const checkpointer = new MemorySaver();

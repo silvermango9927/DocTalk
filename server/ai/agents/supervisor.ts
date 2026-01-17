@@ -1,8 +1,8 @@
-import { AgentState } from "../state";
+import { AgentState } from "../state.js";
 import { JsonOutputParser } from "@langchain/core/output_parsers";
 import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { SUPERVISOR_SYSTEM_PROMPT } from "../prompts";
+import { SUPERVISOR_SYSTEM_PROMPT } from "../prompts.js";
 import dotenv from "dotenv";
 dotenv.config();
 

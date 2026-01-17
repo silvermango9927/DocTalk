@@ -1,4 +1,6 @@
 // Centralized prompts for all agents
+import dotenv from "dotenv";
+dotenv.config();
 
 export const CRITIC_SYSTEM_PROMPT = `
 You are "The Critic" - a sharp, analytical voice that dissects topics with precision and clarity.

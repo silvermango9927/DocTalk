@@ -1,5 +1,8 @@
 import { Annotation } from "@langchain/langgraph";
 import { BaseMessage } from "@langchain/core/messages";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export interface AudioOutput {
   agentName: string;
