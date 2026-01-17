@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentDocumentId = null;  // UUID from backend documents table
   let currentSessionId = null;   // UUID from backend sessions table
   let currentUserId = null;      // UUID for the user
+  let audioQueue = [];           // Queue for agent audio responses
+  let currentAudio = null;       // Currently playing audio element
+  let isPlayingAudio = false;    // Flag to track if audio is playing
 
   // ==================== Configuration ====================
   
@@ -225,7 +228,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         onSpeechEnd: handleSpeechEnd,
         onError: handleVoiceError,
         onAgentResponse: handleAgentResponse,
-        onConnectionChange: handleConnectionChange
+        onConnectionChange: handleConnectionChange,
+        onInterrupt: stopAllAudio  // Stop audio when server sends interrupt
       });
 
       const started = await voiceCapture.start();
@@ -338,7 +342,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function handleSpeechStart() {
-    console.log('Speech started');
+    console.log('Speech started - interrupting agents');
+
+    // Stop all audio immediately when user starts speaking
+    stopAllAudio();
+
     agentResponse.classList.remove('visible');
   }
 
@@ -388,21 +396,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function handleAgentResponse(response) {
     console.log('Agent response:', response);
-    
+
     agentName.textContent = response.agentId || 'Agent';
     agentText.textContent = response.text;
     agentResponse.classList.add('visible');
-    
-    // If audio is provided, play it
+
+    // If audio is provided, play it (will be queued)
     if (response.audio) {
-      playAudioResponse(response.audio);
-    }
-    
-    // Resume listening after response
-    if (voiceCapture) {
-      setTimeout(() => {
-        handleVoiceStatusChange({ status: 'listening' });
-      }, 500);
+      playAudioResponse(response.audio, response.agentId || 'Agent');
     }
   }
 
@@ -416,38 +417,107 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ==================== Audio Playback ====================
 
-  function playAudioResponse(base64Audio) {
+  // Stop all audio playback immediately
+  function stopAllAudio() {
+    console.log('Stopping all audio playback');
+
+    // Clear the queue
+    audioQueue = [];
+
+    // Stop current audio if playing
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio = null;
+    }
+
+    isPlayingAudio = false;
+
+    // Resume voice capture immediately
+    if (voiceCapture) {
+      voiceCapture.resume();
+    }
+  }
+
+  // Add audio to queue and play if not already playing
+  function playAudioResponse(base64Audio, agentName) {
     try {
       // Decode base64 to audio
       const audioData = atob(base64Audio);
       const arrayBuffer = new ArrayBuffer(audioData.length);
       const view = new Uint8Array(arrayBuffer);
-      
+
       for (let i = 0; i < audioData.length; i++) {
         view[i] = audioData.charCodeAt(i);
       }
-      
-      // Create audio blob and play
+
+      // Create audio blob
       const blob = new Blob([arrayBuffer], { type: 'audio/mp3' });
       const audioUrl = URL.createObjectURL(blob);
-      const audio = new Audio(audioUrl);
-      
-      // Pause voice capture while playing
-      if (voiceCapture) {
-        voiceCapture.pause();
+
+      // Add to queue
+      audioQueue.push({ audioUrl, agentName });
+      console.log(`Added ${agentName} audio to queue (queue length: ${audioQueue.length})`);
+
+      // Start playing if not already playing
+      if (!isPlayingAudio) {
+        playNextInQueue();
       }
-      
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-        if (voiceCapture) {
-          voiceCapture.resume();
-        }
-      };
-      
-      audio.play();
     } catch (error) {
-      console.error('Failed to play audio:', error);
+      console.error('Failed to prepare audio:', error);
     }
+  }
+
+  // Play next audio in queue
+  function playNextInQueue() {
+    if (audioQueue.length === 0) {
+      isPlayingAudio = false;
+      console.log('Audio queue empty, resuming voice capture');
+
+      // Resume voice capture when queue is empty
+      if (voiceCapture) {
+        voiceCapture.resume();
+      }
+      return;
+    }
+
+    const { audioUrl, agentName } = audioQueue.shift();
+    isPlayingAudio = true;
+
+    console.log(`Playing ${agentName} audio (${audioQueue.length} remaining in queue)`);
+
+    // Pause voice capture while playing
+    if (voiceCapture) {
+      voiceCapture.pause();
+    }
+
+    // Create and play audio
+    currentAudio = new Audio(audioUrl);
+
+    currentAudio.onended = () => {
+      console.log(`${agentName} audio finished`);
+      URL.revokeObjectURL(audioUrl);
+      currentAudio = null;
+
+      // Play next in queue
+      playNextInQueue();
+    };
+
+    currentAudio.onerror = (error) => {
+      console.error(`Audio playback error for ${agentName}:`, error);
+      URL.revokeObjectURL(audioUrl);
+      currentAudio = null;
+
+      // Continue to next in queue even on error
+      playNextInQueue();
+    };
+
+    currentAudio.play().catch(error => {
+      console.error(`Failed to play ${agentName} audio:`, error);
+      URL.revokeObjectURL(audioUrl);
+      currentAudio = null;
+      playNextInQueue();
+    });
   }
 
   // ==================== Helper Functions ====================

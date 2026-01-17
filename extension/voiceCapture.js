@@ -40,6 +40,7 @@ class VoiceCapture {
     this.onError = options.onError || ((err) => console.error(err));
     this.onAgentResponse = options.onAgentResponse || (() => {});
     this.onConnectionChange = options.onConnectionChange || (() => {});
+    this.onInterrupt = options.onInterrupt || (() => {});
   }
 
   generateId() {
@@ -97,7 +98,7 @@ class VoiceCapture {
   handleServerMessage(event) {
     try {
       const message = JSON.parse(event.data);
-      
+
       switch (message.type) {
         case 'agent_response':
           this.onAgentResponse({
@@ -106,21 +107,27 @@ class VoiceCapture {
             audio: message.audio
           });
           break;
-          
+
+        case 'interrupt':
+          // Server is telling us to interrupt current audio playback
+          console.log('Received interrupt signal from server');
+          this.onInterrupt();
+          break;
+
         case 'agent_speaking':
           // Could pause user recording while agent speaks
           this.onStatusChange({ status: 'agent_speaking', agentId: message.agentId });
           break;
-          
+
         case 'transcript':
           // Real-time transcript feedback
           this.onStatusChange({ status: 'transcript', text: message.text });
           break;
-          
+
         case 'error':
           this.onError(new Error(message.message));
           break;
-          
+
         default:
           console.log('Unknown message type:', message.type);
       }

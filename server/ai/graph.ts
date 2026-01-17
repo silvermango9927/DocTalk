@@ -77,41 +77,86 @@ export async function streamAgent(
   const inputs = {
     messages: [new HumanMessage(userMessage)],
     documentContext,
+    interrupted: false, // Fresh start - not interrupted
+    audioOutputs: [], // Fresh audio outputs
+    next: "supervisor", // Start fresh from supervisor
   };
 
   const allAudioOutputs: AudioOutput[] = [];
   let lastState: any = null;
 
-  // Stream the graph execution
-  for await (const event of await graph.stream(inputs, {
-    ...config,
-    streamMode: "values",
-  })) {
-    // Check for interruption
-    if (interruptSignal?.interrupted) {
-      console.log("\n⚡ Interrupted by user!");
-      break;
-    }
+  console.log(`[Graph] Starting agent graph execution`);
+  console.log(`[Graph] Thread: ${threadId}`);
+  console.log(`[Graph] User message: "${userMessage.substring(0, 50)}..."`);
+  console.log(
+    `[Graph] Document context: ${documentContext ? documentContext.length + " chars" : "NONE"}`,
+  );
 
-    lastState = event;
+  try {
+    // Stream the graph execution
+    for await (const event of await graph.stream(inputs, {
+      ...config,
+      streamMode: "values",
+    })) {
+      // Check for interruption at the start of each event
+      if (interruptSignal?.interrupted) {
+        console.log("\n⚡ [Graph] Interrupted by user at event boundary!");
 
-    // Process new audio outputs
-    if (
-      event.audioOutputs &&
-      event.audioOutputs.length > allAudioOutputs.length
-    ) {
-      const newAudios = event.audioOutputs.slice(allAudioOutputs.length);
-      for (const audio of newAudios) {
-        allAudioOutputs.push(audio);
-        if (onAudio) {
-          // Check interruption before playing
+        // Update graph state to reflect interruption for any subsequent nodes
+        await graph.updateState(config, { interrupted: true });
+        break;
+      }
+
+      lastState = event;
+
+      // Process new audio outputs
+      if (
+        event.audioOutputs &&
+        event.audioOutputs.length > allAudioOutputs.length
+      ) {
+        const newAudios = event.audioOutputs.slice(allAudioOutputs.length);
+        console.log(`[Graph] Processing ${newAudios.length} new audio outputs`);
+
+        for (const audio of newAudios) {
+          // Check interruption before processing each audio
           if (interruptSignal?.interrupted) {
-            console.log("\n⚡ Interrupted by user!");
-            break;
+            console.log(
+              `\n⚡ [Graph] Interrupted before sending ${audio.agentName} audio!`,
+            );
+            return {
+              messages: lastState?.messages || [],
+              audioOutputs: allAudioOutputs,
+            };
           }
-          await onAudio(audio);
+
+          allAudioOutputs.push(audio);
+
+          if (onAudio) {
+            await onAudio(audio);
+
+            // Check again after sending audio
+            if (interruptSignal?.interrupted) {
+              console.log(
+                `\n⚡ [Graph] Interrupted after sending ${audio.agentName} audio!`,
+              );
+              return {
+                messages: lastState?.messages || [],
+                audioOutputs: allAudioOutputs,
+              };
+            }
+          }
         }
       }
+    }
+
+    console.log("[Graph] Agent graph execution completed normally");
+  } catch (error) {
+    // If interrupted during agent execution, log it
+    if (interruptSignal?.interrupted) {
+      console.log("\n⚡ [Graph] Interrupted during agent execution!");
+    } else {
+      console.error("[Graph] Error during execution:", error);
+      throw error;
     }
   }
 

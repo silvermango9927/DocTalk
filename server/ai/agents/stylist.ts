@@ -9,13 +9,22 @@ dotenv.config();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function creativeNode(state: typeof AgentState.State) {
+  // Check if interrupted before starting
+  if (state.interrupted) {
+    console.log("[Creative] Skipping - conversation interrupted");
+    return {
+      messages: [],
+      audioOutputs: [],
+    };
+  }
+
   // Build conversation history for OpenAI format
   const conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[] = state.messages
     .map((msg) => {
       const role = msg._getType() === "human" ? "user" : "assistant";
-      return { 
-        role: role as "user" | "assistant", 
-        content: msg.content as string 
+      return {
+        role: role as "user" | "assistant",
+        content: msg.content as string
       };
     });
 
@@ -23,6 +32,8 @@ export async function creativeNode(state: typeof AgentState.State) {
   const systemPrompt = state.documentContext
     ? `${CREATIVE_SYSTEM_PROMPT}\n\n---\nDOCUMENT CONTEXT:\n${state.documentContext}\n---\n\nUse this document context to inspire your creative insights when relevant.`
     : CREATIVE_SYSTEM_PROMPT;
+
+  console.log("[Creative] Generating response...");
 
   try {
     const response = await openai.chat.completions.create({

@@ -17,6 +17,15 @@ interface SupervisorOutput {
 export async function supervisor(
   state: typeof AgentState.State,
 ): Promise<SupervisorOutput> {
+  // Check if interrupted before starting
+  if (state.interrupted) {
+    console.log("[Supervisor] Skipping - conversation interrupted");
+    return {
+      next: "FINISH",
+      reasoning: "Conversation interrupted by user",
+    };
+  }
+
   const options = ["critic", "creative", "FINISH"];
 
   const chat = new ChatOpenAI({

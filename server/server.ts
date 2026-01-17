@@ -1,6 +1,6 @@
 /**
  * Talk With Doc - Voice AI Server
- * 
+ *
  * Connects Chrome extension to LangGraph multi-agent system
  * with GPT-4o-audio-preview for direct audio responses.
  */
@@ -26,7 +26,9 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing SUPABASE_URL or SUPABASE_KEY in environment variables");
+  console.error(
+    "Missing SUPABASE_URL or SUPABASE_KEY in environment variables",
+  );
   process.exit(1);
 }
 
@@ -69,10 +71,10 @@ interface Message {
 app.get("/health", async (req, res) => {
   // Test Supabase connection
   const { error } = await supabase.from("documents").select("id").limit(1);
-  res.json({ 
-    status: error ? "degraded" : "ok", 
+  res.json({
+    status: error ? "degraded" : "ok",
     database: error ? "disconnected" : "connected",
-    timestamp: new Date().toISOString() 
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -99,7 +101,9 @@ app.post("/api/documents", async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    console.log(`[API] Document created: ${data.id} (${doc_text.length} chars)`);
+    console.log(
+      `[API] Document created: ${data.id} (${doc_text.length} chars)`,
+    );
     res.json(data);
   } catch (error) {
     console.error("[API] Error creating document:", error);
@@ -137,7 +141,9 @@ app.post("/api/sessions", async (req, res) => {
     const { user_id, document_id } = req.body;
 
     if (!user_id || !document_id) {
-      return res.status(400).json({ error: "user_id and document_id are required" });
+      return res
+        .status(400)
+        .json({ error: "user_id and document_id are required" });
     }
 
     const { data, error } = await supabase
@@ -151,7 +157,9 @@ app.post("/api/sessions", async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    console.log(`[API] Session created: ${data.id} for document: ${document_id}`);
+    console.log(
+      `[API] Session created: ${data.id} for document: ${document_id}`,
+    );
     res.json(data);
   } catch (error) {
     console.error("[API] Error creating session:", error);
@@ -239,8 +247,15 @@ wss.on("connection", (ws: WebSocket, req) => {
           connectionData.documentId = message.documentId;
           connectionData.userId = message.userId;
 
-          // Load document text from Supabase if we have a documentId
-          if (message.documentId) {
+          // Accept docText directly from client if provided
+          if (message.docText) {
+            connectionData.docText = message.docText;
+            console.log(
+              `[WS] Document context from client: ${message.docText.length} chars`,
+            );
+          }
+          // Otherwise load from Supabase if we have a documentId
+          else if (message.documentId) {
             const { data: doc, error } = await supabase
               .from("documents")
               .select("doc_text")
@@ -249,20 +264,46 @@ wss.on("connection", (ws: WebSocket, req) => {
 
             if (doc && !error) {
               connectionData.docText = doc.doc_text;
-              console.log(`[WS] Loaded document: ${message.documentId} (${doc.doc_text.length} chars)`);
+              console.log(
+                `[WS] Loaded document: ${message.documentId} (${doc.doc_text.length} chars)`,
+              );
             } else {
-              console.warn(`[WS] Could not load document: ${message.documentId}`, error);
+              console.warn(
+                `[WS] Could not load document: ${message.documentId}`,
+                error,
+              );
             }
           }
 
-          console.log(`[WS] Connection init: user=${message.userId}, session=${message.sessionId}`);
+          console.log(
+            `[WS] Connection init: user=${message.userId}, session=${message.sessionId}, hasDocContext=${!!connectionData.docText}`,
+          );
 
           ws.send(
             JSON.stringify({
               type: "connection_ack",
               visitorId: connectionData.visitorId,
+              hasDocumentContext: !!connectionData.docText,
               timestamp: Date.now(),
-            })
+            }),
+          );
+          break;
+        }
+
+        // ============ DOCUMENT UPDATE ============
+        case "document_update": {
+          connectionData.docText = message.docText || null;
+          console.log(
+            `[WS] Document context updated: ${connectionData.docText?.length || 0} chars`,
+          );
+
+          ws.send(
+            JSON.stringify({
+              type: "document_update_ack",
+              hasDocumentContext: !!connectionData.docText,
+              charCount: connectionData.docText?.length || 0,
+              timestamp: Date.now(),
+            }),
           );
           break;
         }
@@ -274,17 +315,24 @@ wss.on("connection", (ws: WebSocket, req) => {
           // Interrupt any ongoing agent response
           connectionData.interruptSignal.interrupted = true;
 
-          // Reset for new utterance
-          connectionData.audioBuffer = [];
+          // Create a new interrupt signal for the upcoming response
+          // This ensures the new graph run gets a fresh signal
           connectionData.interruptSignal = { interrupted: false };
+
+          // Generate new session ID to force fresh graph execution
+          // This prevents any caching or state reuse from previous run
+          connectionData.sessionId = `${connectionData.sessionId?.split("-interrupt-")[0] || "session"}-interrupt-${Date.now()}`;
 
           // Tell client to stop playing current audio
           ws.send(
             JSON.stringify({
               type: "interrupt",
               timestamp: Date.now(),
-            })
+            }),
           );
+
+          // Reset audio buffer for new utterance
+          connectionData.audioBuffer = [];
           break;
         }
 
@@ -301,7 +349,9 @@ wss.on("connection", (ws: WebSocket, req) => {
 
         // ============ SPEECH END ============
         case "speech_end": {
-          console.log(`[WS] Speech ended: ${connectionData.audioBuffer.length} chunks, ${message.duration}ms`);
+          console.log(
+            `[WS] Speech ended: ${connectionData.audioBuffer.length} chunks, ${message.duration}ms`,
+          );
 
           if (connectionData.audioBuffer.length === 0) {
             console.log("[WS] No audio to process");
@@ -309,7 +359,10 @@ wss.on("connection", (ws: WebSocket, req) => {
           }
 
           try {
-            // 1. Speech-to-Text
+            // 1. Reset interrupt signal for new agent response
+            connectionData.interruptSignal.interrupted = false;
+
+            // 2. Speech-to-Text
             const transcript = await speechToText(connectionData.audioBuffer);
 
             if (!transcript || transcript.trim().length === 0) {
@@ -319,28 +372,28 @@ wss.on("connection", (ws: WebSocket, req) => {
                   type: "transcript",
                   text: "",
                   timestamp: Date.now(),
-                })
+                }),
               );
               break;
             }
 
-            // 2. Save user message to Supabase
+            // 3. Save user message to Supabase
             await saveMessage({
               document_id: connectionData.documentId!,
               sender: "user",
               text: transcript,
             });
 
-            // 3. Send transcript to client
+            // 4. Send transcript to client
             ws.send(
               JSON.stringify({
                 type: "transcript",
                 text: transcript,
                 timestamp: Date.now(),
-              })
+              }),
             );
 
-            // 4. Stream agent responses
+            // 5. Stream agent responses
             const onAudio: AudioCallback = async (audio: AudioOutput) => {
               // Check if interrupted
               if (connectionData.interruptSignal.interrupted) {
@@ -356,7 +409,7 @@ wss.on("connection", (ws: WebSocket, req) => {
                   text: audio.transcript,
                   audio: audio.audioData,
                   timestamp: Date.now(),
-                })
+                }),
               );
 
               // Save agent message to Supabase
@@ -366,29 +419,33 @@ wss.on("connection", (ws: WebSocket, req) => {
                 text: audio.transcript,
               });
 
-              console.log(`[WS] Sent ${audio.agentName} response: "${audio.transcript.substring(0, 50)}..."`);
+              console.log(
+                `[WS] Sent ${audio.agentName} response: "${audio.transcript.substring(0, 50)}..."`,
+              );
             };
 
-            // 5. Run the LangGraph agents
-            console.log("[WS] Starting agent graph...");
+            // 6. Run the LangGraph agents
+            console.log(
+              `[WS] Starting agent graph with docContext: ${connectionData.docText ? connectionData.docText.length + " chars" : "NONE"}`,
+            );
             await streamAgent(
               transcript,
               connectionData.docText || "",
               connectionData.sessionId || "default",
               onAudio,
-              connectionData.interruptSignal
+              connectionData.interruptSignal,
             );
 
             console.log("[WS] Agent graph complete");
-
           } catch (error) {
             console.error("[WS] Error processing speech:", error);
             ws.send(
               JSON.stringify({
                 type: "error",
-                message: error instanceof Error ? error.message : "Processing failed",
+                message:
+                  error instanceof Error ? error.message : "Processing failed",
                 timestamp: Date.now(),
-              })
+              }),
             );
           }
 
@@ -414,7 +471,7 @@ wss.on("connection", (ws: WebSocket, req) => {
           type: "error",
           message: error instanceof Error ? error.message : "Unknown error",
           timestamp: Date.now(),
-        })
+        }),
       );
     }
   });
@@ -452,14 +509,19 @@ async function saveMessage(params: {
     return null;
   }
 
-  console.log(`[DB] Message saved: ${params.sender} -> "${params.text.substring(0, 50)}..."`);
+  console.log(
+    `[DB] Message saved: ${params.sender} -> "${params.text.substring(0, 50)}..."`,
+  );
   return data;
 }
 
 /**
  * Load conversation history for a document (for context)
  */
-async function getConversationHistory(documentId: string, limit = 20): Promise<Message[]> {
+async function getConversationHistory(
+  documentId: string,
+  limit = 20,
+): Promise<Message[]> {
   const { data, error } = await supabase
     .from("messages")
     .select()
