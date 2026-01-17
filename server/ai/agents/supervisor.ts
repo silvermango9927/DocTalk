@@ -27,12 +27,29 @@ export async function supervisor(
 
   const parser = new JsonOutputParser<SupervisorOutput>();
 
-  // Count agent exchanges and identify last speaker
-  const agentMessages = state.messages.filter(
+  // Find all user messages
+  const userMessages = state.messages.filter(
+    (msg) => msg._getType() === "human",
+  );
+  const latestUserMessage = userMessages[userMessages.length - 1];
+  const hasMultipleUserMessages = userMessages.length > 1;
+
+  // Find the index of the latest user message
+  const latestUserMessageIndex = state.messages.findIndex(
+    (msg) => msg === latestUserMessage,
+  );
+
+  // Count agent exchanges AFTER the latest user message (for the current topic)
+  const messagesAfterLatestUser = state.messages.slice(
+    latestUserMessageIndex + 1,
+  );
+  const agentMessagesForCurrentTopic = messagesAfterLatestUser.filter(
     (msg) => msg.name === "critic" || msg.name === "creative",
   );
-  const exchangeCount = agentMessages.length;
-  const lastSpeaker = agentMessages[agentMessages.length - 1]?.name || null;
+  const exchangeCount = agentMessagesForCurrentTopic.length;
+  const lastSpeaker =
+    agentMessagesForCurrentTopic[agentMessagesForCurrentTopic.length - 1]
+      ?.name || null;
 
   const conversationContext = state.messages
     .map((msg) => {
@@ -42,17 +59,19 @@ export async function supervisor(
     .join("\n");
 
   const userMessage = `
-User Request: ${state.messages.find((m) => m._getType() === "human")?.content || "No request provided"}
+LATEST User Request (FOCUS ON THIS): ${latestUserMessage?.content || "No request provided"}
 
-Conversation History:
+${hasMultipleUserMessages ? "NOTE: The user has sent a FOLLOW-UP message. This is a new topic - agents should address THIS message specifically.\n" : ""}
+Full Conversation History:
 ${conversationContext}
 
-Dialogue Status:
-- Number of agent exchanges so far: ${exchangeCount}
-- Last agent to speak: ${lastSpeaker || "none"}
+Current Topic Status:
+- Number of agent exchanges on CURRENT topic (after latest user message): ${exchangeCount}
+- Last agent to speak on current topic: ${lastSpeaker || "none"}
+- Is this a follow-up/interruption: ${hasMultipleUserMessages ? "YES - start fresh with critic" : "NO"}
 
 Decide which agent should speak next to continue the dialogue, or FINISH if the conversation is complete.
-Remember: Alternate between critic and creative. Start with critic. End after 2-4 exchanges.
+Remember: For a NEW user message, always start with critic. Alternate between critic and creative. End after 2-4 exchanges per topic.
 Respond with valid JSON only.`;
 
   const response = await chat.invoke([
