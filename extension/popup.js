@@ -239,7 +239,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         sessionId: sessionId,
         documentId: currentDocumentId, // UUID for linking messages to document
         docText: extractedText, // Document text content for AI context
-        speechThreshold: 0.08,
+        speechThreshold: 0.12, // Higher threshold to reduce background noise sensitivity
         silenceDuration: 1000,
 
         onStatusChange: handleVoiceStatusChange,
