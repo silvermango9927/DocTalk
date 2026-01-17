@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Docs Content</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 420px;
+      min-height: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #202124;
+    }
+
+    .header {
+      background: #1a73e8;
+      color: white;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header h1 {
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .header svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .container {
+      padding: 16px;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .status.info {
+      background: #e8f0fe;
+      color: #1967d2;
+    }
+
+    .status.error {
+      background: #fce8e6;
+      color: #c5221f;
+    }
+
+    .status.success {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-primary {
+      background: #1a73e8;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #1557b0;
+    }
+
+    .btn-primary:disabled {
+      background: #dadce0;
+      color: #80868b;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #e8eaed;
+      color: #202124;
+      margin-top: 8px;
+    }
+
+    .btn-secondary:hover {
+      background: #dadce0;
+    }
+
+    .btn-danger {
+      background: #ea4335;
+      color: white;
+      margin-top: 8px;
+    }
+
+    .btn-danger:hover {
+      background: #c5221f;
+    }
+
+    .content-area {
+      margin-top: 16px;
+    }
+
+    .content-area label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #5f6368;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .content-box {
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .content-box:empty::before {
+      content: "No content extracted yet...";
+      color: #80868b;
+      font-style: italic;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ffffff40;
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .word-count {
+      font-size: 12px;
+      color: #5f6368;
+      margin-top: 8px;
+      text-align: right;
+    }
+
+    /* Voice Section Styles */
+    .divider {
+      height: 1px;
+      background: #dadce0;
+      margin: 20px 0;
+    }
+
+    .voice-section {
+      margin-top: 16px;
+    }
+
+    .voice-section h2 {
+      font-size: 14px;
+      font-weight: 500;
+      color: #202124;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .voice-section h2 svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .voice-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .voice-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+    }
+
+    .voice-indicator {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #e8eaed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .voice-indicator.listening {
+      background: #e8f0fe;
+    }
+
+    .voice-indicator.speaking {
+      background: #e6f4ea;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .voice-indicator.processing {
+      background: #fef7e0;
+    }
+
+    .voice-indicator.error {
+      background: #fce8e6;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .voice-indicator svg {
+      width: 24px;
+      height: 24px;
+      color: #5f6368;
+    }
+
+    .voice-indicator.listening svg {
+      color: #1a73e8;
+    }
+
+    .voice-indicator.speaking svg {
+      color: #137333;
+    }
+
+    .voice-indicator.processing svg {
+      color: #ea8600;
+    }
+
+    .voice-info {
+      flex: 1;
+    }
+
+    .voice-info .status-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: #202124;
+    }
+
+    .voice-info .status-detail {
+      font-size: 12px;
+      color: #5f6368;
+      margin-top: 2px;
+    }
+
+    /* Volume meter */
+    .volume-meter {
+      height: 4px;
+      background: #e8eaed;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .volume-meter .volume-bar {
+      height: 100%;
+      background: #1a73e8;
+      width: 0%;
+      transition: width 0.05s ease;
+      border-radius: 2px;
+    }
+
+    .volume-meter .volume-bar.speaking {
+      background: #34a853;
+    }
+
+    /* Session info */
+    .session-info {
+      font-size: 11px;
+      color: #80868b;
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .session-info code {
+      background: #f1f3f4;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Roboto Mono', monospace;
+    }
+
+    /* Agent response area */
+    .agent-response {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8f9fa;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .agent-response.visible {
+      display: block;
+    }
+
+    .agent-response .agent-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: #1a73e8;
+      margin-bottom: 4px;
+    }
+
+    .agent-response .agent-text {
+      font-size: 14px;
+      color: #202124;
+      line-height: 1.5;
+    }
+
+    /* Connection indicator */
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #dadce0;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .connection-dot.connected {
+      background: #34a853;
+    }
+
+    .connection-dot.connecting {
+      background: #fbbc04;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0.5; }
+    }
+
+    /* Permission help box */
+    .permission-help {
+      margin-top: 12px;
+      padding: 12px;
+      background: #fef7e0;
+      border: 1px solid #f9ab00;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .permission-help p {
+      margin: 0;
+    }
+
+    .permission-help p + p {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #5f6368;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
+    </svg>
+    <h1>Google Docs Extractor</h1>
+  </div>
+
+  <div class="container">
+    <div id="status" class="status info">
+      Click "Sign in with Google" to get started.
+    </div>
+
+    <button id="signInBtn" class="btn btn-primary">
+      Sign in with Google
+    </button>
+
+    <button id="extractBtn" class="btn btn-primary" style="display: none;">
+      Extract Document
+    </button>
+
+    <button id="signOutBtn" class="btn btn-secondary" style="display: none;">
+      Sign Out
+    </button>
+
+    <div id="contentArea" class="content-area" style="display: none;">
+      <label>Extracted Content</label>
+      <div id="content" class="content-box"></div>
+      <div id="wordCount" class="word-count"></div>
+      <button id="copyBtn" class="btn btn-secondary" style="margin-top: 12px;">
+        Copy to Clipboard
+      </button>
+    </div>
+
+    <!-- Voice Conversation Section -->
+    <div id="voiceSection" class="voice-section" style="display: none;">
+      <div class="divider"></div>
+      
+      <h2>
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
+        </svg>
+        Voice Conversation
+      </h2>
+
+      <div class="voice-controls">
+        <div class="voice-status">
+          <div id="voiceIndicator" class="voice-indicator">
+            <svg id="voiceIcon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            </svg>
+          </div>
+          <div class="voice-info">
+            <div id="voiceStatusText" class="status-text">Ready to start</div>
+            <div id="voiceStatusDetail" class="status-detail">Click "Start Voice" to begin conversation</div>
+            <div class="volume-meter">
+              <div id="volumeBar" class="volume-bar"></div>
+            </div>
+          </div>
+        </div>
+
+        <button id="startVoiceBtn" class="btn btn-primary">
+          <span class="connection-dot" id="connectionDot"></span>
+          Start Voice Session
+        </button>
+
+        <div id="micPermissionHelp" class="permission-help" style="display: none;">
+          <p>🎤 <strong>Microphone access needed</strong></p>
+          <p>Click the extension icon again and allow microphone access when prompted. If you dismissed the prompt, click the camera/mic icon in your address bar to change permissions.</p>
+        </div>
+
+        <button id="stopVoiceBtn" class="btn btn-danger" style="display: none;">
+          Stop Voice Session
+        </button>
+
+        <div class="session-info">
+          <span>Session: <code id="sessionIdDisplay">-</code></span>
+          <span>User: <code id="userIdDisplay">-</code></span>
+        </div>
+
+        <div id="agentResponse" class="agent-response">
+          <div class="agent-name" id="agentName">Agent</div>
+          <div class="agent-text" id="agentText"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="voiceCapture.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

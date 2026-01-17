@@ -1,0 +1,128 @@
+.volume-container {
+  height: 6px;
+  background: #2a2a4a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.volume-bar {
+  height: 100%;
+  width: 0%;
+  background: #5dade2;
+  transition: width 0.1s ease, background 0.1s ease;
+}
+
+.volume-bar.speaking {
+  background: #5de29d;
+}
+
+.tuning {
+  font-size: 12px;
+  color: #aaa;
+}
+
+.tuning summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.slider-group {
+  margin: 8px 0;
+}
+
+.slider-group input {
+  width: 100%;
+  margin-top: 4px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 350px;
+  padding: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+  margin: 0;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #fff;
+}
+
+.status {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.status.idle { background: #2d2d44; }
+.status.active { background: #1e3a5f; color: #5dade2; }
+.status.speaking { background: #1e5f3a; color: #5de29d; }
+.status.error { background: #5f1e1e; color: #e25d5d; }
+
+.btn {
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: #4a4a6a;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn:hover { background: #5a5a7a; }
+.btn.active { background: #e74c3c; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.config {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config label {
+  font-size: 12px;
+  color: #aaa;
+}
+
+.config input {
+  padding: 8px;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  background: #2a2a4a;
+  color: #fff;
+  font-size: 13px;
+}
+
+.transcript-box {
+  background: #2a2a4a;
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 120px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.interim {
+  color: #888;
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+.final {
+  color: #fff;
+  line-height: 1.5;
+}
