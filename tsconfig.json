@@ -1,7 +1,0 @@
-{
-  "compilerOptions": {
-    // ...existing code...
-    "types": ["node"]
-    // ...existing code...
-  }
-}
