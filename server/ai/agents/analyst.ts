@@ -19,12 +19,12 @@ export async function criticNode(state: typeof AgentState.State) {
   }
 
   // Build conversation history for OpenAI format
-  const conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[] = state.messages
-    .map((msg) => {
+  const conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[] =
+    state.messages.map((msg) => {
       const role = msg._getType() === "human" ? "user" : "assistant";
       return {
         role: role as "user" | "assistant",
-        content: msg.content as string
+        content: msg.content as string,
       };
     });
 
@@ -32,6 +32,8 @@ export async function criticNode(state: typeof AgentState.State) {
   const systemPrompt = state.documentContext
     ? `${CRITIC_SYSTEM_PROMPT}\n\n---\nDOCUMENT CONTEXT:\n${state.documentContext}\n---\n\nUse this document context to inform your analysis when relevant.`
     : CRITIC_SYSTEM_PROMPT;
+
+  console.log(systemPrompt);
 
   console.log("[Critic] Generating response...");
 
@@ -47,12 +49,15 @@ export async function criticNode(state: typeof AgentState.State) {
     });
 
     const choice = response.choices[0];
-    
+
     // Handle the audio response - the text might be in audio.transcript
     const audioData = choice.message.audio?.data || "";
-    const transcript = choice.message.audio?.transcript || choice.message.content || "";
+    const transcript =
+      choice.message.audio?.transcript || choice.message.content || "";
 
-    console.log(`[Critic] Generated response: "${transcript.substring(0, 100)}..."`);
+    console.log(
+      `[Critic] Generated response: "${transcript.substring(0, 100)}..."`,
+    );
 
     // Create audio output for streaming to client
     const audioOutput: AudioOutput = {
@@ -67,7 +72,7 @@ export async function criticNode(state: typeof AgentState.State) {
     };
   } catch (error) {
     console.error("[Critic] Error generating response:", error);
-    
+
     // Fallback to text-only if audio fails
     const fallbackResponse = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -78,15 +83,19 @@ export async function criticNode(state: typeof AgentState.State) {
       max_tokens: 150,
     });
 
-    const fallbackText = fallbackResponse.choices[0].message.content || "I need a moment to think about that.";
+    const fallbackText =
+      fallbackResponse.choices[0].message.content ||
+      "I need a moment to think about that.";
 
     return {
       messages: [new AIMessage({ content: fallbackText, name: "critic" })],
-      audioOutputs: [{
-        agentName: "critic",
-        audioData: "", // No audio in fallback
-        transcript: fallbackText,
-      }],
+      audioOutputs: [
+        {
+          agentName: "critic",
+          audioData: "", // No audio in fallback
+          transcript: fallbackText,
+        },
+      ],
     };
   }
 }
