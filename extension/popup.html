@@ -528,6 +528,56 @@
     .hidden {
       display: none !important;
     }
+    .sound-wave {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 2px solid;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .orb.critic .sound-wave {
+      border-color: rgba(56, 189, 248, 0.6);
+    }
+
+    .orb.creative .sound-wave {
+      border-color: rgba(168, 85, 247, 0.6);
+    }
+
+    .sound-wave.wave-1 { width: 100%; height: 100%; }
+    .sound-wave.wave-2 { width: 100%; height: 100%; }
+    .sound-wave.wave-3 { width: 100%; height: 100%; }
+
+    .orb-wrapper.speaking .sound-wave {
+      opacity: 1;
+      animation: sound-wave-pulse 1.5s ease-out infinite;
+    }
+
+    .orb-wrapper.speaking .sound-wave.wave-1 {
+      animation-delay: 0s;
+    }
+
+    .orb-wrapper.speaking .sound-wave.wave-2 {
+      animation-delay: 0.5s;
+    }
+
+    .orb-wrapper.speaking .sound-wave.wave-3 {
+      animation-delay: 1s;
+    }
+
+    @keyframes sound-wave-pulse {
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.8;
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(2);
+        opacity: 0;
+      }
+    }
   </style>
 </head>
 <body>
@@ -581,13 +631,21 @@
       <div class="orbs-arena">
         <!-- Critic Orb -->
         <div id="criticOrb" class="orb-wrapper critic" data-agent="critic">
-          <div class="orb critic"></div>
+          <div class="orb critic">
+            <div class="sound-wave wave-1"></div>
+            <div class="sound-wave wave-2"></div>
+            <div class="sound-wave wave-3"></div>
+          </div>
           <span class="orb-label">Critic</span>
         </div>
 
         <!-- Creative Orb -->
         <div id="creativeOrb" class="orb-wrapper creative" data-agent="creative">
-          <div class="orb creative"></div>
+          <div class="orb creative">
+            <div class="sound-wave wave-1"></div>
+            <div class="sound-wave wave-2"></div>
+            <div class="sound-wave wave-3"></div>
+          </div>
           <span class="orb-label">Creative</span>
         </div>
 
