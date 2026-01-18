@@ -22,6 +22,16 @@ export async function criticNode(state: typeof AgentState.State) {
   const conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[] =
     state.messages.map((msg) => {
       const role = msg._getType() === "human" ? "user" : "assistant";
+      const name = (msg as any).name; // Get the agent name if present
+
+      // If it's an assistant message with a name, prefix the content with the agent name
+      if (role === "assistant" && name) {
+        return {
+          role: "assistant",
+          content: `[${name.toUpperCase()}]: ${msg.content as string}`,
+        };
+      }
+
       return {
         role: role as "user" | "assistant",
         content: msg.content as string,

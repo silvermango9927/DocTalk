@@ -495,6 +495,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ==================== AUDIO PLAYBACK ====================
 
+  let audioContext = null;
+  let analyser = null;
+  let animationFrameId = null;
+
+  function initAudioContext() {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+    }
+  }
+
   function stopAllAudio() {
     audioQueue = [];
     
@@ -505,6 +518,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     isPlayingAudio = false;
+    
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+    
     resetOrbStates();
     setListening();
 
@@ -539,6 +558,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   function playNextInQueue() {
     if (audioQueue.length === 0) {
       isPlayingAudio = false;
+      
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      
       setListening();
 
       if (voiceCapture) {
@@ -554,25 +579,105 @@ document.addEventListener("DOMContentLoaded", async () => {
       voiceCapture.pause();
     }
 
+    // Initialize audio context on first use
+    initAudioContext();
+
     currentAudio = new Audio(audioUrl);
+    
+    // Connect audio to analyser
+    const source = audioContext.createMediaElementSource(currentAudio);
+    source.connect(analyser);
+    analyser.connect(audioContext.destination);
+
+    // Set which orb is speaking
+    const isCritic = agentName.toLowerCase().includes("critic");
+    const isCreative = agentName.toLowerCase().includes("creative");
+    
+    if (isCritic) {
+      criticOrb.classList.add("speaking");
+      creativeOrb.classList.remove("speaking");
+    } else if (isCreative) {
+      creativeOrb.classList.add("speaking");
+      criticOrb.classList.remove("speaking");
+    }
+
+    // Start audio visualization
+    animateAudioWaves(isCritic ? criticOrb : creativeOrb);
 
     currentAudio.onended = () => {
       URL.revokeObjectURL(audioUrl);
       currentAudio = null;
+      
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      
+      resetOrbStates();
       playNextInQueue();
     };
 
     currentAudio.onerror = () => {
       URL.revokeObjectURL(audioUrl);
       currentAudio = null;
+      
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      
+      resetOrbStates();
       playNextInQueue();
     };
 
     currentAudio.play().catch(() => {
       URL.revokeObjectURL(audioUrl);
       currentAudio = null;
+      
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      
+      resetOrbStates();
       playNextInQueue();
     });
+  }
+
+  function animateAudioWaves(orbWrapper) {
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const orbElement = orbWrapper.querySelector('.orb');
+    const waves = orbElement.querySelectorAll('.sound-wave');
+    
+    function animate() {
+      if (!currentAudio || currentAudio.paused) {
+        return;
+      }
+
+      analyser.getByteFrequencyData(dataArray);
+      
+      // Calculate average volume
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const average = sum / dataArray.length;
+      const normalizedVolume = average / 255;
+      
+      // Update wave sizes based on audio amplitude
+      waves.forEach((wave, index) => {
+        const scale = 1 + (normalizedVolume * 1.5) + (index * 0.2);
+        const baseDelay = index * 0.5;
+        
+        // Dynamic scaling based on audio
+        wave.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        wave.style.opacity = normalizedVolume * 0.8;
+      });
+      
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    
+    animate();
   }
 
   // ==================== HELPER FUNCTIONS ====================
