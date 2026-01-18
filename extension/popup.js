@@ -76,14 +76,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     setStatus("loading", "Reading document...");
 
     try {
-      const docId = extractDocumentId(tab.url);
+      /*const docId = extractDocumentId(tab.url);
       if (!docId) {
         setStatus("error", "Could not read document");
         showNoDocState();
         return;
+      }*/
+
+      if (tab.url && tab.url.includes("/document/")) {
+        const docId = extractDocumentId(tab.url);
+        if (!docId) { 
+          setStatus("error", "Could not read document");
+          showNoDocState();
+          return;
+        }
+  
+        const response = await fetch(`https://docs.googleapis.com/v1/documents/${docId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+  
+        const data = await response.json();
+        extractedText = extractTextFromDocument(data);
+        // same backend send flow...
       }
 
-      const response = await fetch(`https://docs.googleapis.com/v1/documents/${docId}`, {
+      /*const response = await fetch(`https://docs.googleapis.com/v1/documents/${docId}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
 
@@ -117,7 +134,41 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       // Show voice interface
       setStatus("success", "Ready to talk about your document");
-      showVoiceSection();
+      showVoiceSection();*/
+
+      else if (tab.url && tab.url.includes("/spreadsheets/")) {
+        const sheetId = extractSpreadsheetId(tab.url);
+        if (!sheetId) {
+          setStatus("error", "Could not read spreadsheet");
+          showNoDocState();
+          return;
+        }
+  
+        const sheetText = await extractSheetText(sheetId);
+        extractedText = sheetText;
+  
+        if (extractedText.trim().length === 0) {
+          setStatus("error", "Spreadsheet is empty or not accessible");
+          showNoDocState();
+          return;
+        }
+  
+        // reuse sendToBackend to create a document record
+        const backendData = await sendToBackend(sheetId, "Spreadsheet", extractedText, tab.url);
+        if (backendData) {
+          currentDocumentId = backendData.documentId;
+          currentSessionId = backendData.sessionId;
+          currentUserId = backendData.userId;
+        }
+  
+        setStatus("success", "Ready to talk about your spreadsheet");
+        showVoiceSection();
+      }
+
+      else {
+        showNoDocState();
+        return;
+      }
 
     } catch (error) {
       console.error("Extraction error:", error);
@@ -582,6 +633,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     return match ? match[1] : null;
   }
 
+  function extractSpreadsheetId(url) {
+    const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : null;
+  }
+
   function extractTextFromDocument(doc) {
     if (!doc.body?.content) return "";
 
@@ -614,6 +670,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     return text;
+  }
+
+  async function extractSheetText(spreadsheetId) {
+    // Use the same accessToken as for Docs
+    if (!accessToken) return "";
+  
+    // includeGridData gives us rows; fallback to values endpoint if you prefer smaller payloads
+    const resp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?includeGridData=true`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+  
+    if (!resp.ok) {
+      console.warn("Sheets API access failed", resp.status);
+      return "";
+    }
+  
+    const sheetData = await resp.json();
+  
+    // Flatten to plain text: sheet name, then rows joined by tabs/newlines
+    const parts = [];
+    for (const sheet of sheetData.sheets || []) {
+      const title = sheet.properties?.title || "Sheet";
+      parts.push(`--- ${title} ---`);
+      const rows = sheet.data?.[0]?.rowData || [];
+      for (const r of rows) {
+        const values = (r.values || []).map(c => {
+          if (!c) return "";
+          if (c.effectiveValue?.stringValue) return c.effectiveValue.stringValue;
+          if (c.effectiveValue?.numberValue) return String(c.effectiveValue.numberValue);
+          return c.formattedValue || "";
+        });
+        parts.push(values.join("\t"));
+      }
+    }
+  
+    return parts.join("\n");
   }
 
   async function sendToBackend(googleDocId, title, content, documentUrl) {
