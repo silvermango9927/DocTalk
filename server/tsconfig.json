@@ -14,7 +14,12 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["node"]
+    "types": ["node"],
+    "typeRoots": [
+      "./node_modules/@types",
+      "../node_modules/@types",
+      "../../node_modules/@types"
+    ]
   },
   "include": ["./**/*.ts"],
   "exclude": ["node_modules", "dist"]
