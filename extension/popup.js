@@ -37,8 +37,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ==================== CONFIG ====================
   
-  const BACKEND_URL = "http://localhost:3000";
-  const WS_URL = "ws://localhost:3000/ws/voice";
+  const BACKEND_URL = "https://doctalk-0mxw.onrender.com";
+  const WS_URL = "https://doctalk-0mxw.onrender.com/ws/voice";
 
   // ==================== INITIALIZATION ====================
 
@@ -55,11 +55,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function checkCurrentTab() {
     setStatus("loading", "Checking document...");
-    
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+      console.error(tab.url);
       
-      if (!tab.url || !tab.url.includes("docs.google.com/document")) {
+      if (!tab.url || !tab.url.includes("docs.google.com/document") && !tab.url.includes("docs.google.com/spreadsheets")) {
+        console.error("No valid Google Doc or Sheet open");
         showNoDocState();
         return;
       }
@@ -98,43 +100,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         const data = await response.json();
         extractedText = extractTextFromDocument(data);
         // same backend send flow...
-      }
 
-      /*const response = await fetch(`https://docs.googleapis.com/v1/documents/${docId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setStatus("error", "Session expired");
-          showSignInState();
+        if (extractedText.trim().length === 0) {
+          setStatus("error", "Document is empty");
+          showNoDocState();
           return;
         }
-        setStatus("error", "Could not access document");
-        showNoDocState();
-        return;
+  
+        // Send to backend silently
+        const backendData = await sendToBackend(docId, data.title, extractedText, tab.url);
+        if (backendData) {
+          currentDocumentId = backendData.documentId;
+          currentSessionId = backendData.sessionId;
+          currentUserId = backendData.userId;
+        }
+  
+        // Show voice interface
+        setStatus("success", "Ready to talk about your document");
+        showVoiceSection();
       }
 
-      const data = await response.json();
-      extractedText = extractTextFromDocument(data);
-
-      if (extractedText.trim().length === 0) {
-        setStatus("error", "Document is empty");
-        showNoDocState();
-        return;
-      }
-
-      // Send to backend silently
-      const backendData = await sendToBackend(docId, data.title, extractedText, tab.url);
-      if (backendData) {
-        currentDocumentId = backendData.documentId;
-        currentSessionId = backendData.sessionId;
-        currentUserId = backendData.userId;
-      }
-
-      // Show voice interface
-      setStatus("success", "Ready to talk about your document");
-      showVoiceSection();*/
+      
 
       else if (tab.url && tab.url.includes("/spreadsheets/")) {
         const sheetId = extractSpreadsheetId(tab.url);
@@ -687,6 +673,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   
     const sheetData = await resp.json();
+
+    console.error(sheetData.sheets);
   
     // Flatten to plain text: sheet name, then rows joined by tabs/newlines
     const parts = [];
@@ -704,7 +692,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         parts.push(values.join("\t"));
       }
     }
-  
     return parts.join("\n");
   }
 
