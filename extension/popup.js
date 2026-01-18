@@ -37,8 +37,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ==================== CONFIG ====================
   
-  const BACKEND_URL = "http://localhost:3000";
-  const WS_URL = "ws://localhost:3000/ws/voice";
+  const BACKEND_URL = "https://doctalk-0mxw.onrender.com";
+  const WS_URL = "https://doctalk-0mxw.onrender.com/ws/voice";
 
   // ==================== INITIALIZATION ====================
 
