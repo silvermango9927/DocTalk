@@ -358,7 +358,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         sessionId: sessionId,
         documentId: currentDocumentId,
         docText: extractedText,
-        speechThreshold: 0.1,
+        speechThreshold: 0.12,
         silenceDuration: 800,
 
         onStatusChange: handleVoiceStatusChange,

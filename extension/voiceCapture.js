@@ -12,10 +12,11 @@ class VoiceCapture {
     this.documentId = options.documentId || null; // UUID from documents table
     this.docText = options.docText || null; // Document text content for context
 
-    // VAD configuration
-    this.speechThreshold = options.speechThreshold || 0.08;
+    // VAD configuration - thresholds tuned to reduce background noise sensitivity
+    this.speechThreshold = options.speechThreshold || 0.12; // RMS threshold for speech detection
+    this.bargeInThreshold = options.bargeInThreshold || 0.2; // Higher threshold for interrupting during playback
     this.silenceDuration = options.silenceDuration || 1000; // ms before ending utterance
-    this.minSpeechDuration = options.minSpeechDuration || 200; // ms minimum to count as speech
+    this.minSpeechDuration = options.minSpeechDuration || 300; // ms minimum to count as speech (filters short noise)
 
     // Audio configuration
     this.sampleRate = options.sampleRate || 16000; // 16kHz is standard for STT
@@ -29,6 +30,7 @@ class VoiceCapture {
     this.analyser = null;
     this.isRecording = false;
     this.isSpeaking = false;
+    this.isPaused = false; // Track if we're in "paused" mode (audio playing)
     this.silenceTimeout = null;
     this.speechStartTime = null;
     this.sequence = 0;
@@ -286,9 +288,11 @@ class VoiceCapture {
 
   /**
    * Monitor voice activity using RMS volume
+   * Continues monitoring even during "paused" state to detect barge-in
    */
   monitorVoiceActivity() {
-    if (!this.isRecording) return;
+    // Keep monitoring even when paused (for barge-in detection)
+    if (!this.isRecording && !this.isPaused) return;
 
     const dataArray = new Float32Array(this.analyser.fftSize);
     this.analyser.getFloatTimeDomainData(dataArray);
@@ -304,8 +308,23 @@ class VoiceCapture {
     const normalizedVolume = Math.min(1, rms * 10);
     this.onVolumeChange(normalizedVolume);
 
+    // Use higher threshold during playback to avoid feedback triggering
+    const activeThreshold = this.isPaused
+      ? this.bargeInThreshold
+      : this.speechThreshold;
+
     // Voice activity detection
-    if (rms > this.speechThreshold) {
+    if (rms > activeThreshold) {
+      // If paused (audio playing) and user speaks, trigger barge-in
+      if (this.isPaused && !this.isSpeaking) {
+        console.log("Barge-in detected! User interrupting agent audio.");
+        this.handleBargeIn();
+        // handleBargeIn already handles speech start, continue to next frame
+        requestAnimationFrame(() => this.monitorVoiceActivity());
+        return;
+      }
+
+      // Normal speech detection (not paused)
       if (!this.isSpeaking) {
         this.speechStartTime = Date.now();
         this.handleSpeechStart();
@@ -320,6 +339,42 @@ class VoiceCapture {
 
     // Continue monitoring
     requestAnimationFrame(() => this.monitorVoiceActivity());
+  }
+
+  /**
+   * Handle barge-in (user interrupting agent audio)
+   */
+  handleBargeIn() {
+    // Trigger the interrupt callback first (stops audio in popup.js)
+    this.onInterrupt();
+
+    // Resume normal recording mode
+    this.isPaused = false;
+
+    // Set speaking state to prevent duplicate speech_start from monitorVoiceActivity
+    this.isSpeaking = true;
+    this.speechStartTime = Date.now();
+
+    // Notify server of interruption
+    this.sendMessage({
+      type: "speech_start",
+      userId: this.userId,
+      sessionId: this.sessionId,
+      documentId: this.documentId,
+      timestamp: Date.now(),
+      isBargeIn: true, // Flag to tell server this is an interruption
+    });
+
+    this.onSpeechStart();
+    this.onStatusChange({ status: "speaking" });
+
+    // Reset silence timeout for the new speech
+    clearTimeout(this.silenceTimeout);
+    this.silenceTimeout = setTimeout(() => {
+      this.handleSpeechEnd();
+    }, this.silenceDuration);
+
+    console.log("Barge-in triggered - user interrupted agent audio");
   }
 
   /**
@@ -427,11 +482,16 @@ class VoiceCapture {
 
   /**
    * Pause recording (e.g., while agent is speaking)
+   * Note: Voice monitoring continues for barge-in detection
    */
   pause() {
-    if (this.isRecording) {
-      this.isRecording = false;
+    if (this.isRecording && !this.isPaused) {
+      this.isPaused = true;
+      // Reset speaking state so we can detect fresh speech for barge-in
+      this.isSpeaking = false;
+      this.speechStartTime = null;
       this.onStatusChange({ status: "paused" });
+      console.log("[VoiceCapture] Paused - monitoring for barge-in");
     }
   }
 
@@ -439,7 +499,11 @@ class VoiceCapture {
    * Resume recording
    */
   resume() {
-    if (!this.isRecording && this.audioContext) {
+    if (this.isPaused) {
+      this.isPaused = false;
+      this.onStatusChange({ status: "listening" });
+      console.log("[VoiceCapture] Resumed normal listening");
+    } else if (!this.isRecording && this.audioContext) {
       this.isRecording = true;
       this.onStatusChange({ status: "listening" });
       this.monitorVoiceActivity();
